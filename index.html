@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>קריוקי</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#15151f; color:#eee; margin:0; padding:16px; }
+  .box { max-width:560px; margin:30px auto; background:#22222f; padding:24px; border-radius:14px; }
+  h1 { text-align:center; margin-top:0; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs button { flex:1; padding:10px; border:0; border-radius:8px; background:#33334a; color:#eee; cursor:pointer; font-size:16px; }
+  .tabs button.active { background:#7b5cff; }
+  input[type=text], input[type=file] { width:100%; box-sizing:border-box; padding:10px; border-radius:8px; border:1px solid #444; background:#1a1a26; color:#eee; font-size:15px; }
+  .go { width:100%; margin-top:12px; padding:12px; border:0; border-radius:8px; background:#7b5cff; color:#fff; font-size:17px; cursor:pointer; }
+  .go:disabled { opacity:.5; cursor:wait; }
+  .note { font-size:13px; color:#aaa; margin-top:8px; }
+  #status { margin-top:16px; text-align:center; min-height:22px; }
+  #result { display:none; margin-top:16px; }
+  audio { width:100%; margin:6px 0 14px; }
+  a { color:#b9a8ff; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🎤 קריוקי</h1>
+
+  <div class="tabs">
+    <button id="tabFile" class="active" onclick="showTab('file')">העלאת קובץ</button>
+    <button id="tabUrl" onclick="showTab('url')">קישור יוטיוב</button>
+  </div>
+
+  <div id="paneFile">
+    <input type="file" id="fileInput" accept="audio/*,video/mp4,video/webm">
+    <div class="note">MP3 / WAV / M4A, עד 25MB ועד 10 דקות</div>
+  </div>
+
+  <div id="paneUrl" style="display:none">
+    <input type="text" id="urlInput" placeholder="https://www.youtube.com/watch?v=...">
+    <div class="note">יוטיוב חוסם לפעמים את השרת. אם זה נכשל — השתמש בהעלאת קובץ.</div>
+  </div>
+
+  <button class="go" id="goBtn" onclick="start()">הפרד את השיר</button>
+  <div id="status"></div>
+
+  <div id="result">
+    <h3>פלייבק (בלי שירה)</h3>
+    <audio id="accAudio" controls></audio>
+    <a id="accLink" download>הורדה</a>
+    <h3>שירה בלבד</h3>
+    <audio id="vocAudio" controls></audio>
+    <a id="vocLink" download>הורדה</a>
+  </div>
+</div>
+
+<script>
+  // ⚠️ להחליף בכתובת השרת שלך ב-Render
+  const API = "https://YOUR-APP.onrender.com";
+
+  let mode = "file";
+  function showTab(m) {
+    mode = m;
+    document.getElementById("paneFile").style.display = m === "file" ? "" : "none";
+    document.getElementById("paneUrl").style.display  = m === "url"  ? "" : "none";
+    document.getElementById("tabFile").classList.toggle("active", m === "file");
+    document.getElementById("tabUrl").classList.toggle("active", m === "url");
+  }
+
+  function setStatus(t) { document.getElementById("status").textContent = t; }
+
+  async function start() {
+    const btn = document.getElementById("goBtn");
+    document.getElementById("result").style.display = "none";
+    let res;
+    try {
+      btn.disabled = true;
+      setStatus("מעבד... זה יכול לקחת 1–3 דקות (בפעם הראשונה השרת גם מתעורר)");
+      if (mode === "file") {
+        const f = document.getElementById("fileInput").files[0];
+        if (!f) { setStatus("בחר קובץ קודם"); return; }
+        const fd = new FormData();
+        fd.append("file", f);
+        res = await fetch(API + "/upload", { method: "POST", body: fd });
+      } else {
+        const url = document.getElementById("urlInput").value.trim();
+        if (!url) { setStatus("הדבק קישור קודם"); return; }
+        res = await fetch(API + "/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setStatus("❌ " + (data.detail || "שגיאה בשרת (" + res.status + ")")); return; }
+
+      const acc = API + data.accompaniment, voc = API + data.vocals;
+      document.getElementById("accAudio").src = acc;
+      document.getElementById("vocAudio").src = voc;
+      document.getElementById("accLink").href = acc;
+      document.getElementById("vocLink").href = voc;
+      document.getElementById("result").style.display = "block";
+      setStatus("✅ מוכן!");
+    } catch (e) {
+      setStatus("❌ אין חיבור לשרת. נסה שוב בעוד דקה.");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
